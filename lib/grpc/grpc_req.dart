@@ -25,7 +25,7 @@ class GrpcReq {
   static const _build = 2001100;
   static const _versionName = '2.0.1';
   static const _biliChannel = 'master';
-  static const _mobiApp = 'android_hd';
+  static const _mobiApp = 'android';
   static const _device = 'android';
 
   static final _buvid = LoginUtils.buvid;
