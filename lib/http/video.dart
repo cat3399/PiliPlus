@@ -92,7 +92,7 @@ class VideoHttp {
       'guidance': 0,
       'https_url_req': 0,
       'idx': freshIdx,
-      'mobi_app': 'android_hd',
+      'mobi_app': 'android',
       'network': 'wifi',
       'platform': 'android',
       'player_net': 1,
