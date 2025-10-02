@@ -1,7 +1,9 @@
 import 'package:PiliPlus/models_new/video/video_ai_conclusion/model_result.dart';
 import 'package:PiliPlus/pages/common/slide/common_slide_page.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
+import 'package:PiliPlus/pages/video/introduction/ugc/widgets/selectable_text.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
+import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -52,16 +54,19 @@ class _AiDetailState extends State<AiConclusionPanel>
   }
 
   late Key _key;
+  late bool _isNested;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _key = ValueKey(PrimaryScrollController.of(context).hashCode);
+    final controller = PrimaryScrollController.of(context);
+    _isNested = controller is ExtendedNestedScrollController;
+    _key = ValueKey(controller.hashCode);
   }
 
   @override
   Widget buildList(ThemeData theme) {
-    return CustomScrollView(
+    final child = CustomScrollView(
       key: _key,
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
@@ -69,7 +74,7 @@ class _AiDetailState extends State<AiConclusionPanel>
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: SelectableText(
+              child: selectableText(
                 widget.item.summary!,
                 style: const TextStyle(
                   fontSize: 15,
@@ -98,62 +103,71 @@ class _AiDetailState extends State<AiConclusionPanel>
               itemCount: widget.item.outline!.length,
               itemBuilder: (context, index) {
                 final item = widget.item.outline![index];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (index != 0) const SizedBox(height: 10),
-                    SelectableText(
-                      item.title!,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        height: 1.5,
+                return SelectionArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (index != 0) const SizedBox(height: 10),
+                      Text(
+                        item.title!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          height: 1.5,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    ...?item.partOutline?.map(
-                      (item) => Wrap(
-                        children: [
-                          SelectableText.rich(
-                            TextSpan(
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: theme.colorScheme.onSurface,
-                                height: 1.5,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: DurationUtils.formatDuration(
-                                    item.timestamp,
-                                  ),
-                                  style: TextStyle(
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () {
-                                      try {
-                                        Get.find<VideoDetailController>(
-                                          tag: Get.arguments['heroTag'],
-                                        ).plPlayerController.seekTo(
-                                          Duration(seconds: item.timestamp!),
-                                        );
-                                      } catch (_) {}
-                                    },
+                      const SizedBox(height: 6),
+                      ...?item.partOutline?.map(
+                        (item) => Wrap(
+                          children: [
+                            Text.rich(
+                              TextSpan(
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: theme.colorScheme.onSurface,
+                                  height: 1.5,
                                 ),
-                                const TextSpan(text: ' '),
-                                TextSpan(text: item.content!),
-                              ],
+                                children: [
+                                  TextSpan(
+                                    text: DurationUtils.formatDuration(
+                                      item.timestamp,
+                                    ),
+                                    style: TextStyle(
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () {
+                                        try {
+                                          Get.find<VideoDetailController>(
+                                            tag: Get.arguments['heroTag'],
+                                          ).plPlayerController.seekTo(
+                                            Duration(seconds: item.timestamp!),
+                                          );
+                                        } catch (_) {}
+                                      },
+                                  ),
+                                  const TextSpan(text: ' '),
+                                  TextSpan(text: item.content!),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),
           ),
       ],
     );
+    if (_isNested) {
+      return ExtendedVisibilityDetector(
+        uniqueKey: const Key('ai-conclusion'),
+        child: child,
+      );
+    }
+    return child;
   }
 }

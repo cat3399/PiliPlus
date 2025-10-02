@@ -3,14 +3,17 @@ import 'dart:io';
 import 'package:PiliPlus/build_config.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/custom_toast.dart';
+import 'package:PiliPlus/common/widgets/mouse_back.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
+import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/router/app_pages.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/cache_manage.dart';
+import 'package:PiliPlus/utils/calc_window_position.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
@@ -23,14 +26,20 @@ import 'package:catcher_2/catcher_2.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flex_seed_scheme/flex_seed_scheme.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:window_manager/window_manager.dart' hide calcWindowPosition;
+
+WebViewEnvironment? webViewEnvironment;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,9 +54,10 @@ void main() async {
   Get.lazyPut(AccountService.new);
   HttpOverrides.global = _CustomHttpOverrides();
 
-  await Future.wait([
-    CacheManage.autoClearCache(),
-    if (Utils.isMobile) ...[
+  CacheManage.autoClearCache();
+
+  if (Utils.isMobile) {
+    await Future.wait([
       SystemChrome.setPreferredOrientations(
         [
           DeviceOrientation.portraitUp,
@@ -58,8 +68,19 @@ void main() async {
         ],
       ),
       setupServiceLocator(),
-    ],
-  ]);
+    ]);
+  }
+
+  if (Platform.isWindows) {
+    if (await WebViewEnvironment.getAvailableVersion() != null) {
+      final dir = await getApplicationSupportDirectory();
+      webViewEnvironment = await WebViewEnvironment.create(
+        settings: WebViewEnvironmentSettings(
+          userDataFolder: path.join(dir.path, 'flutter_inappwebview'),
+        ),
+      );
+    }
+  }
 
   Request();
   Request.setCookie();
@@ -85,25 +106,20 @@ void main() async {
   } else if (Utils.isDesktop) {
     await windowManager.ensureInitialized();
 
-    WindowOptions windowOptions = const WindowOptions(
-      minimumSize: Size(400, 720),
+    WindowOptions windowOptions = WindowOptions(
+      minimumSize: const Size(400, 720),
       skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.normal,
+      titleBarStyle: Pref.showWindowTitleBar
+          ? TitleBarStyle.normal
+          : TitleBarStyle.hidden,
       title: Constants.appName,
     );
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       final windowSize = Pref.windowSize;
-      final windowOffset = await Utils.windowOffset;
-      final bounds = Rect.fromLTWH(
-        windowOffset.left,
-        windowOffset.top,
-        windowSize[0],
-        windowSize[1],
+      await windowManager.setBounds(
+        await calcWindowPosition(windowSize) & windowSize,
       );
-      await windowManager.setBounds(bounds);
-      if (Pref.isWindowMaximized) {
-        await windowManager.maximize();
-      }
+      if (Pref.isWindowMaximized) await windowManager.maximize();
       await windowManager.show();
       await windowManager.focus();
     });
@@ -171,7 +187,9 @@ class MyApp extends StatelessWidget {
       late List<DisplayMode> modes;
       FlutterDisplayMode.supported.then((value) {
         modes = value;
-        var storageDisplay = GStorage.setting.get(SettingBoxKey.displayMode);
+        final String? storageDisplay = GStorage.setting.get(
+          SettingBoxKey.displayMode,
+        );
         DisplayMode? displayMode;
         if (storageDisplay != null) {
           displayMode = modes.firstWhereOrNull(
@@ -239,19 +257,63 @@ class MyApp extends StatelessWidget {
             toastBuilder: (String msg) => CustomToast(msg: msg),
             loadingBuilder: (msg) => LoadingWidget(msg: msg),
             builder: (context, child) {
-              return MediaQuery(
+              child = MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: TextScaler.linear(Pref.defaultTextScale),
                 ),
                 child: child!,
               );
+              if (Utils.isDesktop) {
+                return MouseBackDetector(
+                  onTapDown: () {
+                    if (SmartDialog.checkExist()) {
+                      SmartDialog.dismiss();
+                      return;
+                    }
+
+                    if (Get.isDialogOpen ?? Get.isBottomSheetOpen ?? false) {
+                      Get.back();
+                      return;
+                    }
+
+                    final plCtr = PlPlayerController.instance;
+                    if (plCtr != null) {
+                      if (plCtr.isFullScreen.value == true) {
+                        plCtr.triggerFullScreen(status: false);
+                        return;
+                      }
+
+                      if (plCtr.isDesktopPip) {
+                        plCtr.exitDesktopPip().whenComplete(
+                          () => plCtr.initialFocalPoint = Offset.zero,
+                        );
+                        return;
+                      }
+                    }
+
+                    Get.back();
+                  },
+                  child: child,
+                );
+              }
+              return child;
             },
           ),
           navigatorObservers: [
             FlutterSmartDialog.observer,
             PageUtils.routeObserver,
           ],
-          scrollBehavior: const ScrollBehavior().copyWith(scrollbars: false),
+          scrollBehavior: const MaterialScrollBehavior().copyWith(
+            scrollbars: false,
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.stylus,
+              PointerDeviceKind.invertedStylus,
+              PointerDeviceKind.trackpad,
+              PointerDeviceKind.unknown,
+              if (Utils.isDesktop) PointerDeviceKind.mouse,
+            },
+          ),
         );
       }),
     );

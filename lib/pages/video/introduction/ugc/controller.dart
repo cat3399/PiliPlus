@@ -463,7 +463,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
   }
 
   // 修改分P或番剧分集
-  Future<void> onChangeEpisode(
+  Future<bool> onChangeEpisode(
     BaseEpisodeItem episode, {
     bool isStein = false,
   }) async {
@@ -473,7 +473,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
       final int? cid =
           episode.cid ?? await SearchHttp.ab2c(aid: aid, bvid: bvid);
       if (cid == null) {
-        return;
+        return false;
       }
       final String? cover = episode.cover;
 
@@ -488,7 +488,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
             cid: cid,
             cover: cover,
           );
-          return;
+          return false;
         }
       }
 
@@ -546,8 +546,10 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
 
       this.cid.value = cid;
       queryOnlineTotal();
+      return true;
     } catch (e) {
       if (kDebugMode) debugPrint('ugc onChangeEpisode: $e');
+      return false;
     }
   }
 
@@ -652,6 +654,10 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
           videoDetailCtr.plPlayerController.playRepeat;
 
       if (episodes.isEmpty) {
+        if (playRepeat == PlayRepeat.listCycle) {
+          videoDetailCtr.plPlayerController.play(repeat: true);
+          return true;
+        }
         if (playRepeat == PlayRepeat.autoPlayRelated &&
             videoDetailCtr.plPlayerController.showRelatedVideo) {
           return playRelated();

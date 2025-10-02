@@ -20,7 +20,6 @@ import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/action_item.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/menu_row.dart';
-import 'package:PiliPlus/pages/video/introduction/ugc/widgets/triple_state.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
@@ -44,7 +43,6 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:media_kit/media_kit.dart';
 
 class HeaderControl extends StatefulWidget {
   const HeaderControl({
@@ -64,7 +62,7 @@ class HeaderControl extends StatefulWidget {
   State<HeaderControl> createState() => HeaderControlState();
 }
 
-class HeaderControlState extends TripleState<HeaderControl> {
+class HeaderControlState extends State<HeaderControl> {
   late final PlPlayerController plPlayerController = widget.controller;
   late final VideoDetailController videoDetailCtr = widget.videoDetailCtr;
   late final PlayUrlModel videoInfo = videoDetailCtr.data;
@@ -74,7 +72,6 @@ class HeaderControlState extends TripleState<HeaderControl> {
   String get heroTag => widget.heroTag;
   late final UgcIntroController ugcIntroController;
   late final PgcIntroController pgcIntroController;
-  @override
   late CommonIntroController introController = videoDetailCtr.isUgc
       ? ugcIntroController
       : pgcIntroController;
@@ -448,8 +445,9 @@ class HeaderControlState extends TripleState<HeaderControl> {
                       SmartDialog.showToast('播放器未初始化');
                       return;
                     }
-                    final hwdec = await (player.platform as NativePlayer)
-                        .getProperty('hwdec-current');
+                    final hwdec = await player.platform!.getProperty(
+                      'hwdec-current',
+                    );
                     if (!context.mounted) return;
                     showDialog(
                       context: context,
@@ -648,71 +646,77 @@ class HeaderControlState extends TripleState<HeaderControl> {
             clipBehavior: Clip.hardEdge,
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.all(Radius.circular(12)),
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                SizedBox(
-                  height: 45,
-                  child: GestureDetector(
-                    onTap: () => SmartDialog.showToast(
-                      '标灰画质需要bilibili会员（已是会员？请关闭无痕模式）；4k和杜比视界播放效果可能不佳',
-                    ),
-                    child: Row(
-                      spacing: 8,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('选择画质', style: titleStyle),
-                        Icon(
-                          Icons.info_outline,
-                          size: 16,
-                          color: theme.colorScheme.outline,
-                        ),
-                      ],
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 45,
+                    child: GestureDetector(
+                      onTap: () => SmartDialog.showToast(
+                        '标灰画质需要bilibili会员（已是会员？请关闭无痕模式）；4k和杜比视界播放效果可能不佳',
+                      ),
+                      child: Row(
+                        spacing: 8,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('选择画质', style: titleStyle),
+                          Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: theme.colorScheme.outline,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                ...List.generate(totalQaSam, (index) {
-                  final item = videoFormat[index];
-                  return ListTile(
-                    dense: true,
-                    onTap: () async {
-                      if (currentVideoQa.code == item.quality) {
-                        return;
-                      }
-                      Get.back();
-                      final int quality = item.quality!;
-                      final newQa = VideoQuality.fromCode(quality);
-                      videoDetailCtr
-                        ..currentVideoQa.value = newQa
-                        ..updatePlayer();
+                SliverList.builder(
+                  itemCount: totalQaSam,
+                  itemBuilder: (context, index) {
+                    final item = videoFormat[index];
+                    return ListTile(
+                      dense: true,
+                      onTap: () async {
+                        if (currentVideoQa.code == item.quality) {
+                          return;
+                        }
+                        Get.back();
+                        final int quality = item.quality!;
+                        final newQa = VideoQuality.fromCode(quality);
+                        videoDetailCtr
+                          ..currentVideoQa.value = newQa
+                          ..updatePlayer();
 
-                      SmartDialog.showToast("画质已变为：${newQa.desc}");
+                        SmartDialog.showToast("画质已变为：${newQa.desc}");
 
-                      // update
-                      if (!plPlayerController.tempPlayerConf) {
-                        setting.put(
-                          await Utils.isWiFi
-                              ? SettingBoxKey.defaultVideoQa
-                              : SettingBoxKey.defaultVideoQaCellular,
-                          quality,
-                        );
-                      }
-                    },
-                    // 可能包含会员解锁画质
-                    enabled: index >= totalQaSam - userfulQaSam,
-                    contentPadding: const EdgeInsets.only(left: 20, right: 20),
-                    title: Text(item.newDesc!),
-                    trailing: currentVideoQa.code == item.quality
-                        ? Icon(
-                            Icons.done,
-                            color: theme.colorScheme.primary,
-                          )
-                        : Text(
-                            item.format!,
-                            style: subTitleStyle,
-                          ),
-                  );
-                }),
+                        // update
+                        if (!plPlayerController.tempPlayerConf) {
+                          setting.put(
+                            await Utils.isWiFi
+                                ? SettingBoxKey.defaultVideoQa
+                                : SettingBoxKey.defaultVideoQaCellular,
+                            quality,
+                          );
+                        }
+                      },
+                      // 可能包含会员解锁画质
+                      enabled: index >= totalQaSam - userfulQaSam,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                      ),
+                      title: Text(item.newDesc!),
+                      trailing: currentVideoQa.code == item.quality
+                          ? Icon(
+                              Icons.done,
+                              color: theme.colorScheme.primary,
+                            )
+                          : Text(
+                              item.format!,
+                              style: subTitleStyle,
+                            ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -734,55 +738,62 @@ class HeaderControlState extends TripleState<HeaderControl> {
             clipBehavior: Clip.hardEdge,
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.all(Radius.circular(12)),
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                const SizedBox(
-                  height: 45,
-                  child: Center(
-                    child: Text('选择音质', style: titleStyle),
+            child: CustomScrollView(
+              slivers: [
+                const SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 45,
+                    child: Center(
+                      child: Text('选择音质', style: titleStyle),
+                    ),
                   ),
                 ),
-                for (final AudioItem i in audio) ...[
-                  ListTile(
-                    dense: true,
-                    onTap: () async {
-                      if (currentAudioQa.code == i.id) {
-                        return;
-                      }
-                      Get.back();
-                      final int quality = i.id!;
-                      final newQa = AudioQuality.fromCode(quality);
-                      videoDetailCtr
-                        ..currentAudioQa = newQa
-                        ..updatePlayer();
+                SliverList.builder(
+                  itemCount: audio.length,
+                  itemBuilder: (context, index) {
+                    final i = audio[index];
+                    return ListTile(
+                      dense: true,
+                      onTap: () async {
+                        if (currentAudioQa.code == i.id) {
+                          return;
+                        }
+                        Get.back();
+                        final int quality = i.id!;
+                        final newQa = AudioQuality.fromCode(quality);
+                        videoDetailCtr
+                          ..currentAudioQa = newQa
+                          ..updatePlayer();
 
-                      SmartDialog.showToast("音质已变为：${newQa.desc}");
+                        SmartDialog.showToast("音质已变为：${newQa.desc}");
 
-                      // update
-                      if (!plPlayerController.tempPlayerConf) {
-                        setting.put(
-                          await Utils.isWiFi
-                              ? SettingBoxKey.defaultAudioQa
-                              : SettingBoxKey.defaultAudioQaCellular,
-                          quality,
-                        );
-                      }
-                    },
-                    contentPadding: const EdgeInsets.only(left: 20, right: 20),
-                    title: Text(i.quality),
-                    subtitle: Text(
-                      i.codecs!,
-                      style: subTitleStyle,
-                    ),
-                    trailing: currentAudioQa.code == i.id
-                        ? Icon(
-                            Icons.done,
-                            color: theme.colorScheme.primary,
-                          )
-                        : null,
-                  ),
-                ],
+                        // update
+                        if (!plPlayerController.tempPlayerConf) {
+                          setting.put(
+                            await Utils.isWiFi
+                                ? SettingBoxKey.defaultAudioQa
+                                : SettingBoxKey.defaultAudioQaCellular,
+                            quality,
+                          );
+                        }
+                      },
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                      ),
+                      title: Text(i.quality),
+                      subtitle: Text(
+                        i.codecs!,
+                        style: subTitleStyle,
+                      ),
+                      trailing: currentAudioQa.code == i.id
+                          ? Icon(
+                              Icons.done,
+                              color: theme.colorScheme.primary,
+                            )
+                          : null,
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -825,41 +836,41 @@ class HeaderControlState extends TripleState<HeaderControl> {
                   ),
                 ),
                 Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      for (var i in list) ...[
-                        ListTile(
-                          dense: true,
-                          onTap: () {
-                            if (currentDecodeFormats.codes.any(i.startsWith)) {
-                              return;
-                            }
-                            videoDetailCtr
-                              ..currentDecodeFormats =
-                                  VideoDecodeFormatType.fromString(i)
-                              ..updatePlayer();
-                            Get.back();
-                          },
-                          contentPadding: const EdgeInsets.only(
-                            left: 20,
-                            right: 20,
-                          ),
-                          title: Text(
-                            VideoDecodeFormatType.fromString(i).description,
-                          ),
-                          subtitle: Text(
-                            i,
-                            style: subTitleStyle,
-                          ),
-                          trailing: currentDecodeFormats.codes.any(i.startsWith)
-                              ? Icon(
-                                  Icons.done,
-                                  color: theme.colorScheme.primary,
-                                )
-                              : null,
-                        ),
-                      ],
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverList.builder(
+                        itemCount: list.length,
+                        itemBuilder: (context, index) {
+                          final i = list[index];
+                          final format = VideoDecodeFormatType.fromString(i);
+                          return ListTile(
+                            dense: true,
+                            onTap: () {
+                              if (currentDecodeFormats.codes.any(
+                                i.startsWith,
+                              )) {
+                                return;
+                              }
+                              videoDetailCtr
+                                ..currentDecodeFormats = format
+                                ..updatePlayer();
+                              Get.back();
+                            },
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                            ),
+                            title: Text(format.description),
+                            subtitle: Text(i, style: subTitleStyle),
+                            trailing:
+                                currentDecodeFormats.codes.any(i.startsWith)
+                                ? Icon(
+                                    Icons.done,
+                                    color: theme.colorScheme.primary,
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -1309,7 +1320,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
     // 显示区域
     double showArea = plPlayerController.showArea;
     // 不透明度
-    double danmakuOpacity = plPlayerController.danmakuOpacity;
+    double danmakuOpacity = plPlayerController.danmakuOpacity.value;
     // 字体大小
     double danmakuFontScale = plPlayerController.danmakuFontScale;
     // 全屏字体大小
@@ -1432,13 +1443,8 @@ class HeaderControlState extends TripleState<HeaderControl> {
         }
 
         void updateOpacity(double val) {
-          plPlayerController.danmakuOpacity = danmakuOpacity = val;
+          plPlayerController.danmakuOpacity.value = danmakuOpacity = val;
           setState(() {});
-          try {
-            danmakuController?.updateOption(
-              danmakuController.option.copyWith(opacity: danmakuOpacity),
-            );
-          } catch (_) {}
         }
 
         void updateShowArea(double val) {
@@ -1531,6 +1537,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
                               }
                               plPlayerController
                                 ..blockTypes = blockTypes
+                                ..blockColorful = blockTypes.contains(6)
                                 ..putDanmakuSettings();
                               setState(() {});
                               try {
@@ -1845,32 +1852,39 @@ class HeaderControlState extends TripleState<HeaderControl> {
             clipBehavior: Clip.hardEdge,
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.all(Radius.circular(12)),
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                const SizedBox(
-                  height: 45,
-                  child: Center(
-                    child: Text('选择播放顺序', style: titleStyle),
+            child: CustomScrollView(
+              slivers: [
+                const SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 45,
+                    child: Center(
+                      child: Text('选择播放顺序', style: titleStyle),
+                    ),
                   ),
                 ),
-                for (final PlayRepeat i in PlayRepeat.values) ...[
-                  ListTile(
-                    dense: true,
-                    onTap: () {
-                      plPlayerController.setPlayRepeat(i);
-                      Get.back();
-                    },
-                    contentPadding: const EdgeInsets.only(left: 20, right: 20),
-                    title: Text(i.desc),
-                    trailing: plPlayerController.playRepeat == i
-                        ? Icon(
-                            Icons.done,
-                            color: theme.colorScheme.primary,
-                          )
-                        : null,
-                  ),
-                ],
+                SliverList.builder(
+                  itemCount: PlayRepeat.values.length,
+                  itemBuilder: (context, index) {
+                    final i = PlayRepeat.values[index];
+                    return ListTile(
+                      dense: true,
+                      onTap: () {
+                        plPlayerController.setPlayRepeat(i);
+                        Get.back();
+                      },
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                      ),
+                      title: Text(i.desc),
+                      trailing: plPlayerController.playRepeat == i
+                          ? Icon(
+                              Icons.done,
+                              color: theme.colorScheme.primary,
+                            )
+                          : null,
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1898,8 +1912,10 @@ class HeaderControlState extends TripleState<HeaderControl> {
 
   @override
   Widget build(BuildContext context) {
+    final isFullScreen = this.isFullScreen;
     final showFSActionItem =
-        plPlayerController.showFSActionItem && isFullScreen;
+        plPlayerController.showFSActionItem &&
+        (isFullScreen || plPlayerController.isDesktopPip);
     return AppBar(
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -1925,7 +1941,9 @@ class HeaderControlState extends TripleState<HeaderControl> {
                     color: Colors.white,
                   ),
                   onPressed: () {
-                    if (isFullScreen) {
+                    if (plPlayerController.isDesktopPip) {
+                      plPlayerController.exitDesktopPip();
+                    } else if (isFullScreen) {
                       plPlayerController.triggerFullScreen(status: false);
                     } else if (!horizontalScreen && !isPortrait) {
                       verticalScreenForTwoSeconds();
@@ -1935,7 +1953,8 @@ class HeaderControlState extends TripleState<HeaderControl> {
                   },
                 ),
               ),
-              if (!isFullScreen || !isPortrait)
+              if (!plPlayerController.isDesktopPip &&
+                  (!isFullScreen || !isPortrait))
                 SizedBox(
                   width: 42,
                   height: 34,
@@ -1947,13 +1966,17 @@ class HeaderControlState extends TripleState<HeaderControl> {
                       color: Colors.white,
                     ),
                     onPressed: () {
-                      videoDetailCtr.plPlayerController.backToHome = true;
+                      videoDetailCtr.plPlayerController
+                        ..isCloseAll = true
+                        ..dispose();
                       Get.until((route) => route.isFirst);
                     },
                   ),
                 ),
-              if ((introController.videoDetail.value.title != null) &&
-                  (isFullScreen || (!horizontalScreen && !isPortrait)))
+              if (introController.videoDetail.value.title != null &&
+                  (isFullScreen ||
+                      ((!horizontalScreen || plPlayerController.isDesktopPip) &&
+                          !isPortrait)))
                 Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -2011,7 +2034,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
               // show current datetime
               Obx(
                 () {
-                  if ((isFullScreen || !horizontalScreen) && !isPortrait) {
+                  if ((this.isFullScreen || !horizontalScreen) && !isPortrait) {
                     startClock();
                     return Text(
                       now.value,
@@ -2054,7 +2077,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
                   ),
                 ),
               Obx(
-                () => videoDetailCtr.segmentList.isNotEmpty
+                () => videoDetailCtr.segmentProgressList.isNotEmpty
                     ? SizedBox(
                         width: 42,
                         height: 34,
@@ -2123,7 +2146,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
                   },
                 ),
               ),
-              if (Platform.isAndroid)
+              if (Platform.isAndroid || Utils.isDesktop)
                 SizedBox(
                   width: 42,
                   height: 34,
@@ -2133,9 +2156,12 @@ class HeaderControlState extends TripleState<HeaderControl> {
                       padding: WidgetStatePropertyAll(EdgeInsets.zero),
                     ),
                     onPressed: () async {
-                      bool canUsePiP = await Floating().isPipAvailable;
-                      plPlayerController.hiddenControls(false);
-                      if (canUsePiP) {
+                      if (Utils.isDesktop) {
+                        plPlayerController.toggleDesktopPip();
+                        return;
+                      }
+                      if (await Floating().isPipAvailable) {
+                        plPlayerController.hiddenControls(false);
                         if (context.mounted &&
                             !videoPlayerServiceHandler!.enableBackgroundPlay) {
                           final theme = Theme.of(context);
@@ -2211,10 +2237,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
                           await Future.delayed(const Duration(seconds: 3));
                         }
                         if (!context.mounted) return;
-                        PageUtils.enterPip(
-                          width: widget.videoDetailCtr.firstVideo.width,
-                          height: widget.videoDetailCtr.firstVideo.height,
-                        );
+                        plPlayerController.enterPip();
                       }
                     },
                     icon: const Icon(
@@ -2262,16 +2285,16 @@ class HeaderControlState extends TripleState<HeaderControl> {
                       ),
                       selectStatus: introController.hasLike.value,
                       semanticsLabel: '点赞',
-                      animation: tripleAnimation,
+                      animation: introController.tripleAnimation,
                       onStartTriple: () {
                         plPlayerController.tripling = true;
-                        onStartTriple();
+                        introController.onStartTriple();
                       },
-                      onCancelTriple: ([bool isTap = false]) {
+                      onCancelTriple: ([bool isTapUp = false]) {
                         plPlayerController
                           ..tripling = false
                           ..hideTaskControls();
-                        onCancelTriple(isTap);
+                        introController.onCancelTriple(isTapUp);
                       },
                     ),
                   ),
@@ -2302,7 +2325,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
                   child: Obx(
                     () => ActionItem(
                       expand: false,
-                      animation: tripleAnimation,
+                      animation: introController.tripleAnimation,
                       icon: const Icon(
                         FontAwesomeIcons.b,
                         color: Colors.white,
@@ -2320,7 +2343,7 @@ class HeaderControlState extends TripleState<HeaderControl> {
                   child: Obx(
                     () => ActionItem(
                       expand: false,
-                      animation: tripleAnimation,
+                      animation: introController.tripleAnimation,
                       icon: const Icon(
                         FontAwesomeIcons.star,
                         color: Colors.white,

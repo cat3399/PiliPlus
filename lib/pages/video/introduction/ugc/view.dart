@@ -15,9 +15,10 @@ import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/action_item.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/page.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/season.dart';
-import 'package:PiliPlus/pages/video/introduction/ugc/widgets/triple_state.dart';
+import 'package:PiliPlus/pages/video/introduction/ugc/widgets/selectable_text.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
+import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/extension.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
@@ -54,8 +55,7 @@ class UgcIntroPanel extends StatefulWidget {
   State<UgcIntroPanel> createState() => _UgcIntroPanelState();
 }
 
-class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
-  @override
+class _UgcIntroPanelState extends State<UgcIntroPanel> {
   late final UgcIntroController introController;
   late final VideoDetailController videoDetailCtr =
       Get.find<VideoDetailController>(tag: widget.heroTag);
@@ -173,7 +173,13 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
                   if (isLoading)
                     _buildVideoTitle(theme, videoDetail)
                   else if (isHorizontal && Utils.isDesktop)
-                    _buildTitle(theme, videoDetail, isExpand: true)
+                    SelectionArea(
+                      child: _buildVideoTitle(
+                        theme,
+                        videoDetail,
+                        isExpand: true,
+                      ),
+                    )
                   else
                     ExpandablePanel(
                       controller: introController.expandableCtr,
@@ -327,13 +333,9 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
     ),
     if (videoDetail.descV2?.isNotEmpty == true) ...[
       const SizedBox(height: 8),
-      SelectableText.rich(
+      selectableRichText(
         style: const TextStyle(height: 1.4),
-        TextSpan(
-          children: [
-            buildContent(theme, videoDetail),
-          ],
-        ),
+        buildContent(theme, videoDetail),
       ),
     ],
     Obx(() {
@@ -517,7 +519,7 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
         children: [
           Obx(
             () => ActionItem(
-              animation: tripleAnimation,
+              animation: introController.tripleAnimation,
               icon: const Icon(FontAwesomeIcons.thumbsUp),
               selectIcon: const Icon(FontAwesomeIcons.solidThumbsUp),
               selectStatus: introController.hasLike.value,
@@ -525,8 +527,8 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
               text: !isLoading
                   ? NumUtils.numFormat(videoDetail.stat!.like)
                   : null,
-              onStartTriple: onStartTriple,
-              onCancelTriple: onCancelTriple,
+              onStartTriple: introController.onStartTriple,
+              onCancelTriple: introController.onCancelTriple,
             ),
           ),
           Obx(
@@ -543,7 +545,7 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
           ),
           Obx(
             () => ActionItem(
-              animation: tripleAnimation,
+              animation: introController.tripleAnimation,
               icon: const Icon(FontAwesomeIcons.b),
               selectIcon: const Icon(FontAwesomeIcons.b),
               onTap: introController.actionCoinVideo,
@@ -556,7 +558,7 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
           ),
           Obx(
             () => ActionItem(
-              animation: tripleAnimation,
+              animation: introController.tripleAnimation,
               icon: const Icon(FontAwesomeIcons.star),
               selectIcon: const Icon(FontAwesomeIcons.solidStar),
               onTap: () => introController.showFavBottomSheet(context),
@@ -597,11 +599,11 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
   }
 
   static final RegExp urlRegExp = RegExp(
-    '${Constants.urlRegex.pattern}|av\\d+|bv[a-z\\d]{10}',
+    Constants.urlRegex.pattern + r'|av\d+|bv[a-z\d]{10}|(?:\d+[:：])?\d+[:：]\d+',
     caseSensitive: false,
   );
 
-  InlineSpan buildContent(ThemeData theme, VideoDetailData content) {
+  TextSpan buildContent(ThemeData theme, VideoDetailData content) {
     if (content.descV2.isNullOrEmpty) {
       return const TextSpan();
     }
@@ -612,11 +614,12 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
       switch (currentDesc.type) {
         case 1:
           final List<InlineSpan> spanChildren = <InlineSpan>[];
-          (currentDesc.rawText as String).splitMapJoin(
+          currentDesc.rawText?.splitMapJoin(
             urlRegExp,
             onMatch: (Match match) {
-              String matchStr = match[0]!;
-              if (matchStr.toLowerCase().startsWith('http')) {
+              final matchStr = match[0]!;
+              final matchStrLowerCase = matchStr.toLowerCase();
+              if (matchStrLowerCase.startsWith('http')) {
                 spanChildren.add(
                   TextSpan(
                     text: matchStr,
@@ -631,7 +634,7 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
                       },
                   ),
                 );
-              } else if (matchStr.startsWith('av')) {
+              } else if (matchStrLowerCase.startsWith('av')) {
                 try {
                   int aid = int.parse(matchStr.substring(2));
                   IdUtils.av2bv(aid);
@@ -646,7 +649,7 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
                 } catch (e) {
                   spanChildren.add(TextSpan(text: matchStr));
                 }
-              } else {
+              } else if (matchStrLowerCase.startsWith('bv')) {
                 try {
                   IdUtils.bv2av(matchStr);
                   spanChildren.add(
@@ -660,6 +663,26 @@ class _UgcIntroPanelState extends TripleState<UgcIntroPanel> {
                 } catch (e) {
                   spanChildren.add(TextSpan(text: matchStr));
                 }
+              } else {
+                spanChildren.add(
+                  TextSpan(
+                    text: matchStr,
+                    style: TextStyle(color: theme.colorScheme.primary),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () {
+                        try {
+                          Get.find<VideoDetailController>(
+                            tag: widget.heroTag,
+                          ).plPlayerController.seekTo(
+                            Duration(
+                              seconds: DurationUtils.parseDuration(matchStr),
+                            ),
+                            isSeek: false,
+                          );
+                        } catch (_) {}
+                      },
+                  ),
+                );
               }
               return '';
             },

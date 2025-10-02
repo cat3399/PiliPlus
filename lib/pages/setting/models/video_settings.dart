@@ -7,7 +7,7 @@ import 'package:PiliPlus/models/common/video/live_quality.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
-import 'package:PiliPlus/pages/setting/widgets/multi_select_dialog.dart';
+import 'package:PiliPlus/pages/setting/widgets/ordered_multi_select_dialog.dart';
 import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/plugin/pl_player/models/hwdec_type.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -44,14 +44,6 @@ List<SettingsModel> get videoSettings => [
       alignment: Alignment.centerRight,
       scale: 0.8,
       child: Switch(
-        thumbIcon: WidgetStateProperty.resolveWith<Icon?>((
-          Set<WidgetState> states,
-        ) {
-          if (states.isNotEmpty && states.first == WidgetState.selected) {
-            return const Icon(Icons.lock_outline_rounded);
-          }
-          return null;
-        }),
         value: true,
         onChanged: (_) {},
       ),
@@ -345,10 +337,10 @@ List<SettingsModel> get videoSettings => [
     leading: const Icon(Icons.memory_outlined),
     getSubtitle: () => '当前：${Pref.hardwareDecoding}（此项即mpv的--hwdec）',
     onTap: (setState) async {
-      final result = await showDialog<Set<String>>(
+      final result = await showDialog<List<String>>(
         context: Get.context!,
         builder: (context) {
-          return MultiSelectDialog<String>(
+          return OrderedMultiSelectDialog<String>(
             title: '硬解模式',
             initValues: Pref.hardwareDecoding.split(','),
             values: {

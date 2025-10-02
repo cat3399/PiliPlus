@@ -29,6 +29,7 @@ import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart' hide ContextExtensionss;
 import 'package:hive/hive.dart';
@@ -269,8 +270,10 @@ abstract class Pref {
   static double get refreshDragPercentage =>
       _setting.get(SettingBoxKey.refreshDragPercentage, defaultValue: 0.25);
 
-  static double get refreshDisplacement =>
-      _setting.get(SettingBoxKey.refreshDisplacement, defaultValue: 20.0);
+  static double get refreshDisplacement => _setting.get(
+    SettingBoxKey.refreshDisplacement,
+    defaultValue: Utils.isMobile ? 20.0 : 40.0,
+  );
 
   static String get blockUserID {
     String blockUserID = _setting.get(
@@ -410,6 +413,9 @@ abstract class Pref {
 
   static String get audioNormalization =>
       _setting.get(SettingBoxKey.audioNormalization, defaultValue: '0');
+
+  static String get fallbackNormalization =>
+      _setting.get(SettingBoxKey.fallbackNormalization, defaultValue: '0');
 
   static SuperResolutionType get superResolutionType {
     SuperResolutionType? superResolutionType;
@@ -819,10 +825,10 @@ abstract class Pref {
   static bool get minimizeOnExit =>
       _setting.get(SettingBoxKey.minimizeOnExit, defaultValue: true);
 
-  static List<double> get windowSize => _setting.get(
-    SettingBoxKey.windowSize,
-    defaultValue: const [1180.0, 720.0],
-  );
+  static Size get windowSize {
+    final List<double>? size = _setting.get(SettingBoxKey.windowSize);
+    return size == null ? const Size(1180.0, 720.0) : Size(size[0], size[1]);
+  }
 
   static List<double>? get windowPosition =>
       _setting.get(SettingBoxKey.windowPosition);
@@ -832,4 +838,13 @@ abstract class Pref {
 
   static bool get keyboardControl =>
       _setting.get(SettingBoxKey.keyboardControl, defaultValue: true);
+
+  static bool get pauseOnMinimize =>
+      _setting.get(SettingBoxKey.pauseOnMinimize, defaultValue: false);
+
+  static bool get showWindowTitleBar =>
+      _setting.get(SettingBoxKey.showWindowTitleBar, defaultValue: true);
+
+  static double get desktopVolume =>
+      _setting.get(SettingBoxKey.desktopVolume, defaultValue: 1.0);
 }

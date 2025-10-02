@@ -3,7 +3,6 @@ import 'dart:ui';
 
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
-import 'package:PiliPlus/common/widgets/scaffold/scaffold.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/init.dart';
@@ -54,7 +53,7 @@ import 'package:dio/dio.dart' show Options;
 import 'package:easy_debounce/easy_throttle.dart';
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:flutter/material.dart' hide Scaffold, ScaffoldState;
+import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:get/get.dart' hide ContextExtensionss;
@@ -247,13 +246,15 @@ class VideoDetailController extends GetxController
     imageStatus = false;
   }
 
+  final isLoginVideo = Accounts.get(AccountType.video).isLogin;
+
   @override
   void onInit() {
     super.onInit();
     args = Get.arguments;
     videoType = args['videoType'];
     if (videoType == VideoType.pgc) {
-      if (!Accounts.get(AccountType.video).isLogin) {
+      if (!isLoginVideo) {
         _actualVideoType = VideoType.ugc;
       }
     } else if (args['pgcApi'] == true) {
@@ -427,13 +428,13 @@ class VideoDetailController extends GetxController
 
   bool get horizontalScreen => plPlayerController.horizontalScreen;
 
-  bool get showVideoSheet => !horizontalScreen && !isPortrait;
+  bool get showVideoSheet =>
+      (!horizontalScreen && !isPortrait) || plPlayerController.isDesktopPip;
 
   int? _lastPos;
-  List<PostSegmentModel> postList = [];
-  RxList<SegmentModel> segmentList = <SegmentModel>[].obs;
-  List<Segment> viewPointList = <Segment>[];
-  List<Segment>? segmentProgressList;
+  late final List<PostSegmentModel> postList = [];
+  late final List<SegmentModel> segmentList = <SegmentModel>[];
+  late final RxList<Segment> segmentProgressList = <Segment>[].obs;
 
   Color _getColor(SegmentType segment) =>
       plPlayerController.blockColor[segment.index];
@@ -678,7 +679,7 @@ class VideoDetailController extends GetxController
     positionSubscription?.cancel();
     videoLabel.value = '';
     segmentList.clear();
-    segmentProgressList = null;
+    segmentProgressList.clear();
     final result = await Request().get(
       '$blockServer/api/skipSegments',
       queryParameters: {
@@ -774,7 +775,7 @@ class VideoDetailController extends GetxController
         );
 
         // _segmentProgressList
-        (segmentProgressList ??= <Segment>[]).addAll(
+        segmentProgressList.addAll(
           segmentList.map((e) {
             double start = (e.segment.first / duration).clamp(0.0, 1.0);
             double end = (e.segment.second / duration).clamp(0.0, 1.0);
@@ -785,7 +786,6 @@ class VideoDetailController extends GetxController
         if (positionSubscription == null &&
             (autoPlay.value || plPlayerController.preInitPlayer)) {
           initSkip();
-          plPlayerController.segmentList.value = segmentProgressList!;
         }
       } catch (e) {
         if (kDebugMode) debugPrint('failed to parse sponsorblock: $e');
@@ -843,6 +843,11 @@ class VideoDetailController extends GetxController
     });
   }
 
+  void cancelSkipTimer() {
+    skipTimer?.cancel();
+    skipTimer = null;
+  }
+
   void onRemoveItem(int index, item) {
     EasyThrottle.throttle(
       'onRemoveItem',
@@ -851,8 +856,7 @@ class VideoDetailController extends GetxController
         try {
           listData.removeAt(index);
           if (listData.isEmpty) {
-            skipTimer?.cancel();
-            skipTimer = null;
+            cancelSkipTimer();
           }
           listKey.currentState?.removeItem(
             index,
@@ -1056,6 +1060,7 @@ class VideoDetailController extends GetxController
     Duration? seekToTime,
     Duration? duration,
     bool? autoplay,
+    Volume? volume,
   }) async {
     await plPlayerController.setDataSource(
       DataSource(
@@ -1072,10 +1077,6 @@ class VideoDetailController extends GetxController
           'referer': HttpString.baseUrl,
         },
       ),
-      segmentList: segmentProgressList,
-      viewPointList: viewPointList,
-      showVP: showVP,
-      dmTrend: dmTrend,
       seekTo: seekToTime ?? defaultST ?? playedTime,
       duration:
           duration ??
@@ -1099,15 +1100,18 @@ class VideoDetailController extends GetxController
       },
       width: firstVideo.width,
       height: firstVideo.height,
+      volume: volume ?? this.volume,
     );
 
-    initSkip();
-
-    if (vttSubtitlesIndex.value == -1) {
-      _getSubtitle();
+    if (plPlayerController.enableSponsorBlock) {
+      initSkip();
     }
 
-    if (plPlayerController.showDmChart && dmTrend == null) {
+    if (vttSubtitlesIndex.value == -1) {
+      _queryPlayInfo();
+    }
+
+    if (plPlayerController.showDmChart && dmTrend.value == null) {
       _getDmTrend();
     }
 
@@ -1115,6 +1119,19 @@ class VideoDetailController extends GetxController
   }
 
   bool isQuerying = false;
+
+  final Rx<List<LanguageItem>?> languages = Rx<List<LanguageItem>?>(null);
+  final Rx<String?> currLang = Rx<String?>(null);
+  void setLanguage(String language) {
+    if (!isLoginVideo) {
+      SmartDialog.showToast('账号未登录');
+      return;
+    }
+    currLang.value = language;
+    queryVideoUrl(defaultST: playedTime);
+  }
+
+  Volume? volume;
 
   // 视频链接
   Future<void> queryVideoUrl({
@@ -1146,10 +1163,16 @@ class VideoDetailController extends GetxController
       seasonId: seasonId,
       tryLook: plPlayerController.tryLook,
       videoType: _actualVideoType ?? videoType,
+      language: currLang.value,
     );
 
     if (result.isSuccess) {
       data = result.data;
+
+      languages.value = data.language?.items;
+      currLang.value = data.curLanguage;
+
+      volume = data.volume;
 
       if (data.acceptDesc?.contains('试看') == true) {
         SmartDialog.showToast(
@@ -1259,19 +1282,8 @@ class VideoDetailController extends GetxController
 
       /// 优先顺序 设置中指定质量 -> 当前可选的最高质量
       AudioItem? firstAudio;
-      final List<AudioItem> audiosList = data.dash!.audio ?? <AudioItem>[];
-      if (data.dash!.dolby?.audio != null &&
-          data.dash!.dolby!.audio!.isNotEmpty) {
-        // 杜比
-        audiosList.insert(0, data.dash!.dolby!.audio!.first);
-      }
-
-      if (data.dash!.flac?.audio != null) {
-        // 无损
-        audiosList.insert(0, data.dash!.flac!.audio!);
-      }
-
-      if (audiosList.isNotEmpty) {
+      final audiosList = data.dash?.audio;
+      if (audiosList != null && audiosList.isNotEmpty) {
         final List<int> numbers = audiosList.map((map) => map.id!).toList();
         int closestNumber = Utils.findClosestNumber(
           plPlayerController.cacheAudioQa,
@@ -1365,13 +1377,8 @@ class VideoDetailController extends GetxController
   RxList<Subtitle> subtitles = RxList<Subtitle>();
   late final Map<int, String> _vttSubtitles = {};
   late final RxInt vttSubtitlesIndex = (-1).obs;
-  late bool showVP = true;
-
-  void _getSubtitle() {
-    _vttSubtitles.clear();
-    viewPointList.clear();
-    _queryPlayInfo();
-  }
+  late final RxBool showVP = true.obs;
+  late final RxList<Segment> viewPointList = <Segment>[].obs;
 
   // 设定字幕轨道
   Future<void> setSubtitle(int index) async {
@@ -1439,6 +1446,10 @@ class VideoDetailController extends GetxController
   late bool continuePlayingPart = Pref.continuePlayingPart;
 
   Future<void> _queryPlayInfo() async {
+    _vttSubtitles.clear();
+    if (plPlayerController.showViewPoints) {
+      viewPointList.clear();
+    }
     var res = await VideoHttp.playInfo(bvid: bvid, cid: cid.value);
     if (res['status']) {
       PlayInfoData playInfo = res['data'];
@@ -1475,9 +1486,10 @@ class VideoDetailController extends GetxController
         } catch (_) {}
       }
 
-      if (playInfo.viewPoints?.isNotEmpty == true && Pref.showViewPoints) {
+      if (plPlayerController.showViewPoints &&
+          playInfo.viewPoints?.firstOrNull?.type == 2) {
         try {
-          viewPointList = playInfo.viewPoints!.map((item) {
+          viewPointList.value = playInfo.viewPoints!.map((item) {
             double start = (item.to! / (data.timeLength! / 1000)).clamp(
               0.0,
               1.0,
@@ -1492,30 +1504,26 @@ class VideoDetailController extends GetxController
               item.to,
             );
           }).toList();
-          if (plPlayerController.viewPointList.isEmpty) {
-            plPlayerController.viewPointList.value = viewPointList;
-            plPlayerController.showVP.value = showVP = true;
-          }
         } catch (_) {}
       }
 
       if (playInfo.subtitle?.subtitles?.isNotEmpty == true) {
-        int idx = 0;
         subtitles.value = playInfo.subtitle!.subtitles!;
 
-        SubtitlePrefType preference =
-            SubtitlePrefType.values[Pref.subtitlePreferenceV2];
-        if (preference != SubtitlePrefType.off) {
-          idx = subtitles.indexWhere((i) => !i.lan!.startsWith('ai')) + 1;
-          if (idx == 0) {
-            if (preference == SubtitlePrefType.on ||
-                (Utils.isMobile &&
-                    preference == SubtitlePrefType.auto &&
-                    (await FlutterVolumeController.getVolume() ?? 0) <= 0)) {
-              idx = 1;
-            }
-          }
-        }
+        final idx = switch (SubtitlePrefType.values[Pref
+            .subtitlePreferenceV2]) {
+          SubtitlePrefType.off => 0,
+          SubtitlePrefType.on => 1,
+          SubtitlePrefType.withoutAi =>
+            subtitles.first.lan.startsWith('ai') ? 0 : 1,
+          SubtitlePrefType.auto =>
+            !subtitles.first.lan.startsWith('ai') ||
+                    (Utils.isMobile &&
+                        (await FlutterVolumeController.getVolume() ?? 0.0) <=
+                            0.0)
+                ? 1
+                : 0,
+        };
         setSubtitle(idx);
       }
     }
@@ -1572,12 +1580,20 @@ class VideoDetailController extends GetxController
     videoUrl = null;
     audioUrl = null;
 
+    // language
+    languages.value = null;
+    currLang.value = null;
+
     if (scrollRatio.value != 0) {
       scrollRatio.refresh();
     }
 
+    // dm trend
+    if (plPlayerController.showDmChart) {
+      dmTrend.value = null;
+    }
+
     // danmaku
-    dmTrend = null;
     savedDanmaku = null;
 
     // subtitle
@@ -1586,7 +1602,9 @@ class VideoDetailController extends GetxController
     _vttSubtitles.clear();
 
     // view point
-    viewPointList.clear();
+    if (plPlayerController.showViewPoints) {
+      viewPointList.clear();
+    }
 
     // sponsor block
     if (plPlayerController.enableSponsorBlock) {
@@ -1594,7 +1612,7 @@ class VideoDetailController extends GetxController
       positionSubscription = null;
       videoLabel.value = '';
       segmentList.clear();
-      segmentProgressList = null;
+      segmentProgressList.clear();
     }
 
     // interactive video
@@ -1605,10 +1623,12 @@ class VideoDetailController extends GetxController
     showSteinEdgeInfo.value = false;
   }
 
-  List<double>? dmTrend;
+  late final Rx<LoadingState<List<double>>?> dmTrend =
+      Rx<LoadingState<List<double>>?>(null);
+  late final RxBool showDmTreandChart = true.obs;
 
   Future<void> _getDmTrend() async {
-    dmTrend = null;
+    dmTrend.value = LoadingState<List<double>>.loading();
     try {
       var res = await Request().get(
         'https://bvc.bilivideo.com/pbp/data',
@@ -1617,16 +1637,15 @@ class VideoDetailController extends GetxController
           'cid': cid.value,
         },
       );
-
       PbpData data = PbpData.fromJson(res.data);
       int stepSec = data.stepSec ?? 0;
       if (stepSec != 0 && data.events?.eDefault?.isNotEmpty == true) {
-        dmTrend = data.events?.eDefault;
-        if (plPlayerController.dmTrend.isEmpty) {
-          plPlayerController.dmTrend.value = dmTrend!;
-        }
+        dmTrend.value = Success(data.events!.eDefault!);
+        return;
       }
+      dmTrend.value = const Error(null);
     } catch (e) {
+      dmTrend.value = const Error(null);
       if (kDebugMode) debugPrint('_getDmTrend: $e');
     }
   }
@@ -1673,5 +1692,20 @@ class VideoDetailController extends GetxController
         ),
       );
     }
+  }
+
+  bool onSkipSegment() {
+    try {
+      if (plPlayerController.enableSponsorBlock) {
+        if (listData.lastOrNull case SegmentModel item) {
+          onSkip(item);
+          onRemoveItem(listData.indexOf(item), item);
+          return true;
+        }
+      }
+    } catch (_) {
+      if (kDebugMode) rethrow;
+    }
+    return false;
   }
 }

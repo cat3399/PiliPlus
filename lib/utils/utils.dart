@@ -4,17 +4,14 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:PiliPlus/common/constants.dart';
-import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter/material.dart' show Alignment;
 import 'package:flutter/services.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:window_manager/window_manager.dart';
 
 abstract class Utils {
   static final Random random = Random();
@@ -27,19 +24,6 @@ abstract class Utils {
   @pragma("vm:platform-const")
   static final bool isDesktop =
       Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-
-  static Future<({double left, double top})> get windowOffset async {
-    final windowPosition = Pref.windowPosition;
-    if (windowPosition != null) {
-      return (left: windowPosition[0], top: windowPosition[1]);
-    }
-    final Size windowSize = await windowManager.getSize();
-    final Offset position = await calcWindowPosition(
-      windowSize,
-      Alignment.center,
-    );
-    return (left: position.dx, top: position.dy);
-  }
 
   static Future<bool> get isWiFi async {
     try {
@@ -79,12 +63,7 @@ abstract class Utils {
   static Future<Rect?> get sharePositionOrigin async {
     if (await isIpad) {
       final size = Get.size;
-      return Rect.fromLTWH(
-        0,
-        0,
-        size.width,
-        size.height / 2,
-      );
+      return Rect.fromLTWH(0, 0, size.width, size.height / 2);
     }
     return null;
   }
@@ -96,10 +75,7 @@ abstract class Utils {
     }
     try {
       await SharePlus.instance.share(
-        ShareParams(
-          text: text,
-          sharePositionOrigin: await sharePositionOrigin,
-        ),
+        ShareParams(text: text, sharePositionOrigin: await sharePositionOrigin),
       );
     } catch (e) {
       SmartDialog.showToast(e.toString());

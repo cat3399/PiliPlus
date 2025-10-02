@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:PiliPlus/common/widgets/interactiveviewer_gallery/hero_dialog_route.dart';
 import 'package:PiliPlus/common/widgets/interactiveviewer_gallery/interactiveviewer_gallery.dart';
-import 'package:PiliPlus/common/widgets/marquee.dart';
 import 'package:PiliPlus/grpc/im.dart';
 import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/search.dart';
@@ -227,17 +226,6 @@ abstract class PageUtils {
                               alignment: Alignment.centerRight,
                               scale: 0.8,
                               child: Switch(
-                                thumbIcon:
-                                    WidgetStateProperty.resolveWith<Icon?>((
-                                      Set<WidgetState> states,
-                                    ) {
-                                      if (states.isNotEmpty &&
-                                          states.first ==
-                                              WidgetState.selected) {
-                                        return const Icon(Icons.done);
-                                      }
-                                      return null;
-                                    }),
                                 value: shutdownTimerService
                                     .waitForPlayingCompleted,
                                 onChanged: (value) {
@@ -474,6 +462,11 @@ abstract class PageUtils {
         SmartDialog.showToast('暂未支持的类型，请联系开发者');
         break;
 
+      case 'DYNAMIC_TYPE_LIVE':
+        DynamicLive2Model liveRcmd = item.modules.moduleDynamic!.major!.live!;
+        toLiveRoom(liveRcmd.id);
+        break;
+
       case 'DYNAMIC_TYPE_LIVE_RCMD':
         DynamicLiveModel liveRcmd =
             item.modules.moduleDynamic!.major!.liveRcmd!;
@@ -601,24 +594,6 @@ abstract class PageUtils {
     );
   }
 
-  static void onHorizontalPreview(
-    BuildContext context,
-    List<SourceModel> imgList,
-    int index,
-  ) {
-    final scaffoldState = Scaffold.maybeOf(context);
-    if (scaffoldState != null) {
-      onHorizontalPreviewState(
-        scaffoldState,
-        ContextSingleTicker(scaffoldState.context),
-        imgList,
-        index,
-      );
-    } else {
-      imageView(imgList: imgList, initialPage: index);
-    }
-  }
-
   static void inAppWebview(
     String url, {
     bool off = false,
@@ -642,13 +617,13 @@ abstract class PageUtils {
     }
   }
 
-  static Future<void> launchURL(String url) async {
+  static Future<void> launchURL(
+    String url, {
+    LaunchMode mode = LaunchMode.externalApplication,
+  }) async {
     try {
       final Uri uri = Uri.parse(url);
-      if (!await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      )) {
+      if (!await launchUrl(uri, mode: mode)) {
         SmartDialog.showToast('Could not launch $url');
       }
     } catch (e) {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
@@ -29,7 +30,6 @@ import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
-import 'package:floating/floating.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
@@ -161,7 +161,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
         if (isFullScreen && Platform.isIOS) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!_liveRoomController.isPortrait.value) {
-              landScape();
+              landscape();
             }
           });
         }
@@ -181,23 +181,26 @@ class _LiveRoomPageState extends State<LiveRoomPage>
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isAndroid && Floating().isPipMode) {
-      return videoPlayerPanel(
+    Widget child;
+    if (plPlayerController.isPipMode) {
+      child = videoPlayerPanel(
         isFullScreen,
         width: maxWidth,
         height: maxHeight,
         isPipMode: true,
         needDm: !plPlayerController.pipNoDanmaku,
       );
+    } else {
+      child = childWhenDisabled;
     }
     if (plPlayerController.keyboardControl) {
-      return PlayerFocus(
+      child = PlayerFocus(
         plPlayerController: plPlayerController,
         onSendDanmaku: _liveRoomController.onSendDanmaku,
-        child: childWhenDisabled,
+        child: child,
       );
     }
-    return childWhenDisabled;
+    return child;
   }
 
   Widget videoPlayerPanel(
@@ -209,45 +212,48 @@ class _LiveRoomPageState extends State<LiveRoomPage>
     Alignment? alignment,
     bool needDm = true,
   }) {
-    if (!isFullScreen) {
+    if (!isFullScreen && !plPlayerController.isDesktopPip) {
       _liveRoomController.fsSC.value = null;
     }
     _liveRoomController.isFullScreen = isFullScreen;
-    Widget player = Obx(() {
-      if (_liveRoomController.isLoaded.value) {
-        final roomInfoH5 = _liveRoomController.roomInfoH5.value;
-        return PLVideoPlayer(
-          key: playerKey,
-          maxWidth: width,
-          maxHeight: height,
-          fill: fill,
-          alignment: alignment,
-          plPlayerController: plPlayerController,
-          headerControl: LiveHeaderControl(
-            title: roomInfoH5?.roomInfo?.title,
-            upName: roomInfoH5?.anchorInfo?.baseInfo?.uname,
+    Widget player = Obx(
+      key: playerKey,
+      () {
+        if (_liveRoomController.isLoaded.value) {
+          final roomInfoH5 = _liveRoomController.roomInfoH5.value;
+          return PLVideoPlayer(
+            maxWidth: width,
+            maxHeight: height,
+            fill: fill,
+            alignment: alignment,
             plPlayerController: plPlayerController,
-            onSendDanmaku: _liveRoomController.onSendDanmaku,
-            onPlayAudio: _liveRoomController.queryLiveUrl,
-          ),
-          bottomControl: BottomControl(
-            plPlayerController: plPlayerController,
-            liveRoomCtr: _liveRoomController,
-            onRefresh: _liveRoomController.queryLiveUrl,
-          ),
-          danmuWidget: !needDm
-              ? null
-              : LiveDanmaku(
-                  liveRoomController: _liveRoomController,
-                  plPlayerController: plPlayerController,
-                  isFullScreen: isFullScreen,
-                  isPipMode: isPipMode,
-                ),
-        );
-      }
-      return const SizedBox.shrink();
-    });
-    if (isFullScreen && _liveRoomController.showSuperChat) {
+            headerControl: LiveHeaderControl(
+              title: roomInfoH5?.roomInfo?.title,
+              upName: roomInfoH5?.anchorInfo?.baseInfo?.uname,
+              plPlayerController: plPlayerController,
+              onSendDanmaku: _liveRoomController.onSendDanmaku,
+              onPlayAudio: _liveRoomController.queryLiveUrl,
+            ),
+            bottomControl: BottomControl(
+              plPlayerController: plPlayerController,
+              liveRoomCtr: _liveRoomController,
+              onRefresh: _liveRoomController.queryLiveUrl,
+            ),
+            danmuWidget: !needDm
+                ? null
+                : LiveDanmaku(
+                    liveRoomController: _liveRoomController,
+                    plPlayerController: plPlayerController,
+                    isFullScreen: isFullScreen,
+                    isPipMode: isPipMode,
+                  ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+    if (_liveRoomController.showSuperChat &&
+        (isFullScreen || plPlayerController.isDesktopPip)) {
       player = Stack(
         clipBehavior: Clip.none,
         children: [
@@ -259,7 +265,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
               child: TextButton(
                 onPressed: () {
                   _liveRoomController.fsSC.value = SuperChatItem.fromJson({
-                    "id": Utils.generateRandomString(8),
+                    "id": Utils.random.nextInt(2147483647),
                     "price": 66,
                     "end_time":
                         DateTime.now().millisecondsSinceEpoch ~/ 1000 + 5,
@@ -294,7 +300,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
               }
               try {
                 return SizedBox(
-                  key: Key(item.id.toString()),
+                  key: ValueKey(item.id),
                   width: 255,
                   child: Stack(
                     clipBehavior: Clip.none,
@@ -324,6 +330,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
                   ),
                 );
               } catch (_) {
+                if (kDebugMode) rethrow;
                 return const SizedBox.shrink();
               }
             }),
@@ -419,6 +426,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
     final isFullScreen = this.isFullScreen;
     final height = maxWidth * 9 / 16;
     final videoHeight = isFullScreen ? maxHeight : height;
+    final bottomHeight = maxHeight - padding.top - height - kToolbarHeight;
     return Column(
       children: [
         Offstage(
@@ -438,7 +446,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
           offstage: isFullScreen,
           child: SizedBox(
             width: maxWidth,
-            height: maxHeight - padding.top - height - kToolbarHeight,
+            height: max(0, bottomHeight),
             child: _buildBottomWidget,
           ),
         ),
@@ -665,8 +673,10 @@ class _LiveRoomPageState extends State<LiveRoomPage>
   }
 
   Widget get _buildBodyH {
-    final videoWidth =
+    double videoWidth =
         clampDouble(maxHeight / maxWidth * 1.08, 0.56, 0.7) * maxWidth;
+    final rigthWidth = min(400.0, maxWidth - videoWidth - padding.horizontal);
+    videoWidth = maxWidth - rigthWidth;
     final videoHeight = maxHeight - padding.top;
     return Obx(
       () {
@@ -700,7 +710,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
                     Offstage(
                       offstage: isFullScreen,
                       child: SizedBox(
-                        width: maxWidth - videoWidth - padding.horizontal,
+                        width: rigthWidth,
                         height: videoHeight,
                         child: _buildBottomWidget,
                       ),
@@ -731,7 +741,7 @@ class _LiveRoomPageState extends State<LiveRoomPage>
       liveRoomController: _liveRoomController,
     );
     return Padding(
-      padding: EdgeInsets.only(bottom: 12, top: !isPortrait ? 0 : 12),
+      padding: EdgeInsets.only(bottom: 12, top: isPortrait ? 12 : 0),
       child: _liveRoomController.showSuperChat
           ? PageView(
               key: pageKey,
@@ -820,14 +830,14 @@ class _LiveRoomPageState extends State<LiveRoomPage>
                 ),
                 Builder(
                   builder: (context) {
-                    final theme = Theme.of(context).colorScheme;
+                    final colorScheme = Theme.of(context).colorScheme;
                     return Material(
                       type: MaterialType.transparency,
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
                           InkWell(
-                            overlayColor: overlayColor(theme),
+                            overlayColor: overlayColor(colorScheme),
                             customBorder: const CircleBorder(),
                             onTapDown: _liveRoomController.onLikeTapDown,
                             onTapUp: _liveRoomController.onLikeTapUp,
@@ -863,9 +873,9 @@ class _LiveRoomPageState extends State<LiveRoomPage>
                                   'x$likeClickTime',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: theme.brightness.isDark
-                                        ? theme.primary
-                                        : theme.inversePrimary,
+                                    color: colorScheme.isDark
+                                        ? colorScheme.primary
+                                        : colorScheme.inversePrimary,
                                   ),
                                 ),
                               );
@@ -1022,7 +1032,9 @@ class _LiveDanmakuState extends State<LiveDanmaku> {
     return Obx(
       () {
         return AnimatedOpacity(
-          opacity: plPlayerController.enableShowLiveDanmaku.value ? 1 : 0,
+          opacity: plPlayerController.enableShowLiveDanmaku.value
+              ? plPlayerController.danmakuOpacity.value
+              : 0,
           duration: const Duration(milliseconds: 100),
           child: DanmakuScreen(
             createdController: (DanmakuController e) {
@@ -1033,7 +1045,6 @@ class _LiveDanmakuState extends State<LiveDanmaku> {
               fontSize: _fontSize,
               fontWeight: plPlayerController.danmakuFontWeight,
               area: plPlayerController.showArea,
-              opacity: plPlayerController.danmakuOpacity,
               hideTop: plPlayerController.blockTypes.contains(5),
               hideScroll: plPlayerController.blockTypes.contains(2),
               hideBottom: plPlayerController.blockTypes.contains(4),

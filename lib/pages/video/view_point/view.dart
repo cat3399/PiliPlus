@@ -6,6 +6,7 @@ import 'package:PiliPlus/pages/common/slide/common_slide_page.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
+import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -52,17 +53,9 @@ class _ViewPointsPageState extends State<ViewPointsPage>
               alignment: Alignment.centerLeft,
               scale: 0.8,
               child: Switch(
-                thumbIcon: WidgetStateProperty.resolveWith<Icon?>((states) {
-                  if (states.isNotEmpty &&
-                      states.first == WidgetState.selected) {
-                    return const Icon(Icons.done);
-                  }
-                  return null;
-                }),
-                value: videoDetailController.plPlayerController.showVP.value,
-                onChanged: (value) {
-                  videoDetailController.plPlayerController.showVP.value = value;
-                },
+                value: videoDetailController.showVP.value,
+                onChanged: (value) =>
+                    videoDetailController.showVP.value = value,
               ),
             ),
           ),
@@ -86,16 +79,19 @@ class _ViewPointsPageState extends State<ViewPointsPage>
   }
 
   late Key _key;
+  late bool _isNested;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _key = ValueKey(PrimaryScrollController.of(context).hashCode);
+    final controller = PrimaryScrollController.of(context);
+    _isNested = controller is ExtendedNestedScrollController;
+    _key = ValueKey(controller.hashCode);
   }
 
   @override
   Widget buildList(ThemeData theme) {
-    return ListView.builder(
+    final child = ListView.builder(
       key: _key,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.only(
@@ -117,6 +113,13 @@ class _ViewPointsPageState extends State<ViewPointsPage>
         return _buildItem(theme, segment, isCurr);
       },
     );
+    if (_isNested) {
+      return ExtendedVisibilityDetector(
+        uniqueKey: const Key('viewpoints'),
+        child: child,
+      );
+    }
+    return child;
   }
 
   Widget _buildItem(ThemeData theme, Segment segment, bool isCurr) {

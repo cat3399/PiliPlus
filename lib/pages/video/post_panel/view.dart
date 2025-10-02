@@ -4,7 +4,6 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
-import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/sponsor_block/action_type.dart';
 import 'package:PiliPlus/models/common/sponsor_block/post_segment_model.dart';
@@ -18,6 +17,7 @@ import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/extension.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:dio/dio.dart';
+import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
@@ -240,11 +240,14 @@ class _PostPanelState extends State<PostPanel>
   }
 
   late Key _key;
+  late bool _isNested;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _key = ValueKey(PrimaryScrollController.of(context).hashCode);
+    final controller = PrimaryScrollController.of(context);
+    _isNested = controller is ExtendedNestedScrollController;
+    _key = ValueKey(controller.hashCode);
   }
 
   @override
@@ -253,18 +256,25 @@ class _PostPanelState extends State<PostPanel>
       return errorWidget();
     }
     final bottom = MediaQuery.viewPaddingOf(context).bottom;
+    Widget child = ListView.builder(
+      key: _key,
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.only(bottom: 88 + bottom),
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        return _buildItem(theme, index, list[index]);
+      },
+    );
+    if (_isNested) {
+      child = ExtendedVisibilityDetector(
+        uniqueKey: const Key('post-panel'),
+        child: child,
+      );
+    }
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        ListView.builder(
-          key: _key,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.only(bottom: 88 + bottom),
-          itemCount: list.length,
-          itemBuilder: (context, index) {
-            return _buildItem(theme, index, list[index]);
-          },
-        ),
+        child,
         Positioned(
           right: 16,
           bottom: 16 + bottom,
@@ -338,8 +348,6 @@ class _PostPanelState extends State<PostPanel>
           list.map((e) => SegmentItemModel.fromJson(e)).toList(),
         );
       }
-      plPlayerController.segmentList.value =
-          videoDetailController.segmentProgressList ?? <Segment>[];
       if (videoDetailController.positionSubscription == null) {
         videoDetailController.initSkip();
       }

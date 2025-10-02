@@ -16,6 +16,7 @@ import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -83,12 +84,11 @@ class ChatItem extends StatelessWidget {
                       textColor: textColor,
                     )
                   : GestureDetector(
-                      onLongPress: onLongPress == null
-                          ? null
-                          : () {
-                              Feedback.forLongPress(context);
-                              onLongPress!();
-                            },
+                      onLongPress: () {
+                        Feedback.forLongPress(context);
+                        onLongPress!();
+                      },
+                      onSecondaryTap: Utils.isMobile ? null : onLongPress,
                       child: Row(
                         mainAxisAlignment: isOwner
                             ? MainAxisAlignment.end
@@ -704,28 +704,24 @@ class ChatItem extends StatelessWidget {
               ),
             ),
             Divider(color: theme.colorScheme.primary.withValues(alpha: 0.05)),
-            SelectableText(content['text']),
+            if ((content['text'] as String?)?.isNotEmpty == true)
+              SelectableText(content['text']),
             if (modules?.isNotEmpty == true) ...[
               const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: modules!.indexed
-                      .map(
-                        (e) => TextSpan(
-                          children: [
-                            TextSpan(
-                              text: e.$2['title'],
-                              style: TextStyle(
-                                color: theme.colorScheme.outline,
-                              ),
-                            ),
-                            TextSpan(text: '    ${e.$2['detail']}'),
-                            if (e.$1 != modules.length - 1)
-                              const TextSpan(text: '\n'),
-                          ],
-                        ),
-                      )
-                      .toList(),
+              ...modules!.map(
+                (e) => Row(
+                  spacing: 10,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        e['title'],
+                        style: TextStyle(color: theme.colorScheme.outline),
+                      ),
+                    ),
+                    Expanded(child: Text(e['detail'])),
+                  ],
                 ),
               ),
             ],

@@ -110,6 +110,9 @@ class _FollowPageState extends State<FollowPage> {
                         Feedback.forLongPress(context);
                         _onHandleTag(index, item);
                       },
+                      onSecondaryTap: Utils.isMobile
+                          ? null
+                          : () => _onHandleTag(index, item),
                       child: Tab(
                         child: Row(
                           children: [

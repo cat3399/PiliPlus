@@ -25,7 +25,8 @@ abstract class SettingBoxKey {
       enableAutoExit = 'enableAutoExit',
       enableOnlineTotal = 'enableOnlineTotal',
       showSuperChat = 'showSuperChat',
-      keyboardControl = 'keyboardControl';
+      keyboardControl = 'keyboardControl',
+      pauseOnMinimize = 'pauseOnMinimize';
 
   static const String enableVerticalExpand = 'enableVerticalExpand',
       feedBackEnable = 'feedBackEnable',
@@ -92,6 +93,7 @@ abstract class SettingBoxKey {
       refreshDisplacement = 'refreshDisplacement',
       showHotRcmd = 'showHotRcmd',
       audioNormalization = 'audioNormalization',
+      fallbackNormalization = 'fallbackNormalization',
       superResolutionType = 'superResolutionType',
       preInitPlayer = 'preInitPlayer',
       mainTabBarView = 'mainTabBarView',
@@ -141,7 +143,9 @@ abstract class SettingBoxKey {
   static const String minimizeOnExit = 'minimizeOnExit',
       windowSize = 'windowSize',
       windowPosition = 'windowPosition',
-      isWindowMaximized = 'isWindowMaximized';
+      isWindowMaximized = 'isWindowMaximized',
+      showWindowTitleBar = 'showWindowTitleBar',
+      desktopVolume = 'desktopVolume';
 
   static const String subtitlePreferenceV2 = 'subtitlePreferenceV2',
       enableDragSubtitle = 'enableDragSubtitle',

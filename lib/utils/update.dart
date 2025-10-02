@@ -25,7 +25,7 @@ abstract class Update {
         Api.latestApp,
         options: Options(
           headers: {'user-agent': UaType.mob.ua},
-          extra: {'account': NoAccount()},
+          extra: {'account': const NoAccount()},
         ),
       );
       if (res.data is Map || res.data.isEmpty) {
@@ -112,17 +112,18 @@ abstract class Update {
   }
 
   // 下载适用于当前系统的安装包
-  static Future<void> onDownload(data) async {
+  static Future<void> onDownload(Map data) async {
     SmartDialog.dismiss();
     try {
-      void download(plat) {
+      void download(String plat) {
         if (data['assets'].isNotEmpty) {
-          for (dynamic i in data['assets']) {
+          for (Map<String, dynamic> i in data['assets']) {
             if (i['name'].contains(plat)) {
               PageUtils.launchURL(i['browser_download_url']);
-              break;
+              return;
             }
           }
+          throw UnsupportedError('platform not found: $plat');
         }
       }
 
@@ -132,9 +133,10 @@ abstract class Update {
         // [arm64-v8a]
         download(androidInfo.supportedAbis.first);
       } else {
-        download('ios');
+        download(Platform.operatingSystem);
       }
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) debugPrint('download error: $e');
       PageUtils.launchURL('${Constants.sourceCodeUrl}/releases/latest');
     }
   }
